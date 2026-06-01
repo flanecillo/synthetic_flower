@@ -1,18 +1,26 @@
 import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import gsap from "gsap";
 
 // ─────────────────────────────────────────────
-// URL del jardín — cambia esto a tu ruta real
+// URL del Gaussian — cambia esto a tu ruta real
 // ─────────────────────────────────────────────
-const GARDEN_URL = "https://jardin17.vercel.app/";
+const GARDEN_URL = "https://casa-azul-zeta.vercel.app/";
 
 // ─────────────────────────────────────────────
 // Distancia para mostrar el botón "Visitar Jardín"
 // ─────────────────────────────────────────────
-const PROXIMITY_THRESHOLD = 6.0;
+const PROXIMITY_THRESHOLD = 20.0;
+
+// ─────────────────────────────────────────────
+// Modo debug
+// true  = muestra esferas movibles
+// false = oculta debug para versión final
+// ─────────────────────────────────────────────
+const DEBUG_ENTRY_POINTS = true;
 
 const app = document.querySelector("#app");
 
@@ -28,7 +36,7 @@ app.innerHTML = `
   </div>
 
   <aside class="ui-panel">
-    <h1>Cuatro Cuartos</h1>
+    <h1>Casa Azul</h1>
     <p>
       Demo base para visualizar una maqueta 3D en web.
       Esta versión está pensada como punto de partida.
@@ -37,10 +45,12 @@ app.innerHTML = `
       <div><strong>Mouse:</strong> clic izquierdo rota</div>
       <div><strong>Mouse:</strong> clic derecho mueve</div>
       <div><strong>Rueda:</strong> zoom</div>
+      <br />
+      <div><strong>Debug:</strong> mueve la esfera verde y roja para obtener coordenadas.</div>
     </div>
   </aside>
 
-  <button class="visit-btn" id="visitBtn">🌿 Visitar Jardín</button>
+  <button class="visit-btn" id="visitBtn">Visitar Interior</button>
 
   <div class="fade-overlay" id="fadeOverlay"></div>
 `;
@@ -135,17 +145,20 @@ scene.add(grid);
 const modelGroup = new THREE.Group();
 scene.add(modelGroup);
 
+let loadedModel = null;
+
 // ─────────────────────────────────────────────
-// Puntos de la ventana (coordenadas locales del
-// modelo, convertidas de Blender)
+// Puntos de entrada
 //
-// Blender → Three.js:  X→X  Y→-Z  Z→Y
+// Verde: punto hacia donde mira la cámara.
+// Rojo: punto hacia donde se mueve la cámara.
 //
-// Punto exterior (verde): Blender(1.70,  0.25, 4.77) → Three(1.70, 4.77, -0.25)
-// Punto interior (rojo):  Blender(1.70, -0.50, 4.77) → Three(1.70, 4.77,  0.50)
+// Estos valores están en coordenadas locales del modelo.
+// Con el debug activado, mueve las esferas y copia los
+// valores que aparecen en consola.
 // ─────────────────────────────────────────────
-const WIN_LOCAL_EXT = new THREE.Vector3(1.7, 4.77, -0.25);
-const WIN_LOCAL_INT = new THREE.Vector3(1.7, 4.77, 0.5);
+const WIN_LOCAL_EXT = new THREE.Vector3(0, 4.77, 2);
+const WIN_LOCAL_INT = new THREE.Vector3(3, 4.77, 2);
 
 const windowExteriorWorld = new THREE.Vector3();
 const windowInteriorWorld = new THREE.Vector3();
@@ -189,31 +202,98 @@ function enableShadows(object3D) {
 }
 
 // ─────────────────────────────────────────────
+// Debug spheres
+// ─────────────────────────────────────────────
+function createDebugSphere(name, color, localPosition, model) {
+  const geometry = new THREE.SphereGeometry(0.12, 24, 24);
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    depthTest: false,
+  });
+
+  const sphere = new THREE.Mesh(geometry, material);
+  sphere.name = name;
+  sphere.position.copy(localPosition);
+  sphere.renderOrder = 999;
+
+  model.add(sphere);
+
+  const transform = new TransformControls(camera, renderer.domElement);
+  transform.attach(sphere);
+  transform.setMode("translate");
+  transform.setSize(0.65);
+
+  scene.add(transform);
+
+  transform.addEventListener("dragging-changed", (event) => {
+    controls.enabled = !event.value;
+  });
+
+  transform.addEventListener("objectChange", () => {
+    console.log(
+      `${name}: new THREE.Vector3(${sphere.position.x.toFixed(3)}, ${sphere.position.y.toFixed(3)}, ${sphere.position.z.toFixed(3)})`,
+    );
+  });
+
+  return { sphere, transform };
+}
+
+function updateEntryWorldPositions(model) {
+  const tempObj = new THREE.Object3D();
+  model.add(tempObj);
+
+  tempObj.position.copy(WIN_LOCAL_EXT);
+  tempObj.updateWorldMatrix(true, false);
+  tempObj.getWorldPosition(windowExteriorWorld);
+
+  tempObj.position.copy(WIN_LOCAL_INT);
+  tempObj.updateWorldMatrix(true, false);
+  tempObj.getWorldPosition(windowInteriorWorld);
+
+  model.remove(tempObj);
+}
+
+// ─────────────────────────────────────────────
 // Loader GLB
 // ─────────────────────────────────────────────
 const gltfLoader = new GLTFLoader();
 
 gltfLoader.load(
-  "/models/CuatroCuartos_compressed.glb",
+  "/models/CasaAzulOpt.glb",
   (gltf) => {
     const model = gltf.scene;
+    loadedModel = model;
+
     enableShadows(model);
     modelGroup.add(model);
     centerAndFitModel(model);
 
-    // Calcular posiciones mundo sin helpers visuales
-    const tempObj = new THREE.Object3D();
-    model.add(tempObj);
+    // Calcular posiciones mundo para la animación
+    updateEntryWorldPositions(model);
 
-    tempObj.position.copy(WIN_LOCAL_EXT);
-    tempObj.updateWorldMatrix(true, false);
-    tempObj.getWorldPosition(windowExteriorWorld);
+    // Crear esferas de debug
+    if (DEBUG_ENTRY_POINTS) {
+      createDebugSphere(
+        "ENTRY_LOOK_POINT_VERDE",
+        0x00ff00,
+        WIN_LOCAL_EXT,
+        model,
+      );
 
-    tempObj.position.copy(WIN_LOCAL_INT);
-    tempObj.updateWorldMatrix(true, false);
-    tempObj.getWorldPosition(windowInteriorWorld);
+      createDebugSphere(
+        "ENTRY_CAMERA_POINT_ROJO",
+        0xff0000,
+        WIN_LOCAL_INT,
+        model,
+      );
 
-    model.remove(tempObj);
+      console.log("Debug activado:");
+      console.log(
+        "Mueve las esferas verde y roja. Copia los valores que aparecen aquí en consola.",
+      );
+      console.log("Verde = WIN_LOCAL_EXT / punto hacia donde mira la cámara.");
+      console.log("Rojo = WIN_LOCAL_INT / punto hacia donde se mueve la cámara.");
+    }
 
     // ── Loading done ──────────────────────────
     loadingBar.style.width = "100%";
