@@ -5,7 +5,7 @@ import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 // ─────────────────────────────────────────────
 // Configuración
 // ─────────────────────────────────────────────
-const SPLAT_URL = "/models/test_PatoSOGExport.sog";
+const SPLAT_URL = "/models/2kPotSOG.sog";
 
 // Radio de órbita (distancia cámara → origen)
 const ORBIT_RADIUS = 7;
@@ -98,10 +98,10 @@ const splatMesh = new SplatMesh({
   },
 });
 
-splatMesh.rotateY(-Math.PI / 2);
 splatMesh.rotateX(Math.PI);
 splatMesh.translateZ(-1);
 splatMesh.translateY(1);
+splatMesh.translateX(-0.6);
 scene.add(splatMesh);
 
 // ─────────────────────────────────────────────
