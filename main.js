@@ -5,7 +5,7 @@ import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 // ─────────────────────────────────────────────
 // Configuración
 // ─────────────────────────────────────────────
-const SPLAT_URL = "/models/2kSOG_rotated.sog";
+const SPLAT_URL = "/models/2kPotSOG.sog";
 
 // Radio de órbita (distancia cámara → origen)
 const ORBIT_RADIUS = 7;
