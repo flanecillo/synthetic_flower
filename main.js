@@ -139,7 +139,7 @@ let mouseNY = 0;
 if (!isMobile) {
   window.addEventListener("mousemove", (e) => {
     mouseNX = (e.clientX / window.innerWidth) * 2 - 1;
-    mouseNY = (e.clientY / window.innerHeight) * 2 - 1;
+    mouseNY = (e.clientY / window.innerHeight) * 5 - 2.5; // rango vertical más amplio
   });
 
   // Zoom con scroll
